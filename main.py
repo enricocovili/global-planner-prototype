@@ -4,6 +4,9 @@ import scipy.signal
 import numpy as np
 import matplotlib.pyplot as plt
 
+import logging
+logging.basicConfig(level=logging.INFO)
+
 def load_points_from_csv(file_path):
     points = []
     try:
@@ -23,17 +26,18 @@ class Trajectory:
     def __init__(self, points: np.ndarray, is_loop: bool):
         self.points = points
         self.is_loop = is_loop
-        # calculate the length of the trajectory
-        self.length = 0
-        for i in range(1, len(self.points)):
-            self.length += np.linalg.norm(self.points[i] - self.points[i - 1])
-        if is_loop:
-            self.length += np.linalg.norm(self.points[-1] - self.points[0])
-
+        self.update_length()
         
     @staticmethod
     def interpolate(a, b, t):
         return a + t * (b - a)
+
+    def update_length(self):
+        self.length = 0
+        for i in range(1, len(self.points)):
+            self.length += np.linalg.norm(self.points[i] - self.points[i - 1])
+        if self.is_loop:
+            self.length += np.linalg.norm(self.points[-1] - self.points[0])
 
     def do_resample(self, num_points):
         if self.points.size == 0 or num_points < 1:
@@ -287,7 +291,6 @@ def segment_track(traj: Trajectory, curvature: np.ndarray):
     return np.array(straights), np.array(curves)
 
 
-
 def plot_segments(straights: np.ndarray, curves: np.ndarray):
     
     """
@@ -324,7 +327,7 @@ def plot_curvatures_derivates(curvatures: np.ndarray):
 
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8))
     # window title
-    fig.canvas.set_window_title('Curvature Plot')
+    fig.canvas.manager.set_window_title('Curvature Plot')
 
     ax1.plot(curvatures, color='blue')
     ax1.set_ylabel('Curvature')
@@ -359,10 +362,12 @@ if __name__ == "__main__":
         # convert to numpy array
         points = np.array(points)
         traj = Trajectory(points, True)
-        traj.do_resample(300) # points every 0.5 meters
+        logging.info(f"Trajectory length: {traj.length:.3f}m")
+        traj.do_resample(int(traj.length)) # points every ~1m
         traj.do_smoothing()
         curvature = Curvature(traj)
         curvature.do_computations(absolute=False)
+
         # single_plot_curvature(curvature.curvatures, traj.points)
         double_plot_curvature(curvature.curvatures, traj.points)
         # plot_curvatures_derivates(curvature.curvatures)
