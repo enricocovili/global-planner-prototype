@@ -105,13 +105,16 @@ class Curvature:
 
         return ds
 
-    def curvature(self, ds: np.ndarray):
+    def curvature(self, ds: np.ndarray, absolute: bool):
         """
         Compute curvature for a set of 2D points along a path.
         """
         def curv(fp: np.ndarray, fpp: np.ndarray) -> float:
             """Compute curvature given first and second derivatives."""
-            return np.abs((fp[0] * fpp[1] - fp[1] * fpp[0]) / (np.linalg.norm(fp) ** 3 + 1e-8))
+            if absolute:
+                return np.abs((fp[0] * fpp[1] - fp[1] * fpp[0]) / (np.linalg.norm(fp) ** 3 + 1e-8))
+            else:
+                return (fp[0] * fpp[1] - fp[1] * fpp[0]) / (np.linalg.norm(fp) ** 3 + 1e-8)
 
         N = len(self.trajectory.points)
         k = np.zeros(N)
@@ -197,7 +200,7 @@ class Curvature:
         # Apply filtfilt for zero-phase filtering
         return scipy.signal.filtfilt(b, a, self.curvatures, method="gust")
 
-    def do_computations(self):
+    def do_computations(self, absolute: bool = False):
         """
         Perform curvature computations on a set of 2D points.
         
@@ -205,7 +208,7 @@ class Curvature:
         - np.ndarray: Curvature values for each point.
         """
         ds = self.segment_lengths()
-        curvs = self.curvature(ds)
+        curvs = self.curvature(ds, absolute)
         # apply butterworth filter
         curvs = self.butterworth_filter(0.1)
         self.curvatures = curvs
@@ -270,28 +273,20 @@ def segment_track(traj: Trajectory, curvature: np.ndarray):
     # divide the track in the following parts:
     # straights and curves.
     # use this strategy to divide the track:
-    # find local maxima and minima of the curvature, these are the points where the track changes from straight to curve and vice versa
-    # the threshold is used to filter out small curvatures that are not relevant
+    # if the abs(curvature) of a point is below 0.3 then it is straight
 
-    local_state = "straight"
-    categorized_pts = []
-
-    # Find local maxima and minima of curvature
-    for i in range(1, len(curvature) - 1):
-        if curvature[i - 1] < curvature[i] > curvature[i + 1]:
-            local_state = "curve" if local_state == "straight" else "straight"
-        categorized_pts.append((i, local_state))
-            
-    straights = [traj.points[0]]
+    straights = []
     curves = []
 
-    for idx, state in categorized_pts:
-        if state == "straight":
-            straights.append(traj.points[idx])
+    for i in range(len(curvature)):
+        if abs(curvature[i]) < 0.025:
+            straights.append(traj.points[i])
         else:
-            curves.append(traj.points[idx])
+            curves.append(traj.points[i])
 
     return np.array(straights), np.array(curves)
+
+
 
 def plot_segments(straights: np.ndarray, curves: np.ndarray):
     
@@ -307,10 +302,10 @@ def plot_segments(straights: np.ndarray, curves: np.ndarray):
     plt.figure(figsize=(10, 8))
 
     if len(straights) > 0:
-        plt.plot(straights[:, 0], straights[:, 1], label='Straights', color='blue', marker='o', linestyle='-', linewidth=2)
+        plt.scatter(straights[:, 0], straights[:, 1], label='Straights', color='blue', marker='o')
 
     if len(curves) > 0:
-        plt.plot(curves[:, 0], curves[:, 1], label='Curves', color='red', marker='o', linestyle='-', linewidth=2)
+        plt.scatter(curves[:, 0], curves[:, 1], label='Curves', color='red', marker='o')
     
     plt.axis('equal')
     plt.xlabel('x')
@@ -364,13 +359,13 @@ if __name__ == "__main__":
         # convert to numpy array
         points = np.array(points)
         traj = Trajectory(points, True)
-        traj.do_resample(200) # points every 0.5 meters
+        traj.do_resample(300) # points every 0.5 meters
         traj.do_smoothing()
         curvature = Curvature(traj)
-        curvature.do_computations()
-        single_plot_curvature(curvature.curvatures, traj.points)
+        curvature.do_computations(absolute=False)
+        # single_plot_curvature(curvature.curvatures, traj.points)
         double_plot_curvature(curvature.curvatures, traj.points)
-        plot_curvatures_derivates(curvature.curvatures)
+        # plot_curvatures_derivates(curvature.curvatures)
         straights, curves = segment_track(traj, curvature.curvatures)
         plot_segments(straights, curves)
 
