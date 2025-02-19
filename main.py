@@ -369,8 +369,8 @@ if __name__ == "__main__":
         curvature.do_computations(absolute=False)
 
         # single_plot_curvature(curvature.curvatures, traj.points)
-        double_plot_curvature(curvature.curvatures, traj.points)
-        # plot_curvatures_derivates(curvature.curvatures)
+        # double_plot_curvature(curvature.curvatures, traj.points)
+        plot_curvatures_derivates(curvature.curvatures)
         straights, curves = segment_track(traj, curvature.curvatures)
         plot_segments(straights, curves)
 
